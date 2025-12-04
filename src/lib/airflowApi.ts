@@ -39,15 +39,16 @@ function getAuthConfig(): { baseUrl: string; token: string } | null {
   return { baseUrl, token };
 }
 
-// Create headers for API requests
-function createHeaders(token: string): HeadersInit {
+// Create headers for proxied API requests
+function createProxyHeaders(baseUrl: string, token: string): HeadersInit {
   return {
     "Authorization": `Basic ${token}`,
+    "X-Airflow-Base-URL": baseUrl,
     "Content-Type": "application/json",
   };
 }
 
-// Generic fetch wrapper with error handling
+// Generic fetch wrapper with error handling - uses Next.js API proxy to avoid CORS
 async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -59,20 +60,21 @@ async function apiFetch<T>(
   }
   
   const { baseUrl, token } = config;
-  const url = `${baseUrl.replace(/\/$/, "")}/api/v1${endpoint}`;
+  // Use the Next.js API proxy route to avoid CORS issues
+  const proxyUrl = `/api/airflow${endpoint}`;
   
-  const response = await fetch(url, {
+  const response = await fetch(proxyUrl, {
     ...options,
     headers: {
-      ...createHeaders(token),
+      ...createProxyHeaders(baseUrl, token),
       ...options.headers,
     },
   });
   
   if (!response.ok) {
-    const errorText = await response.text().catch(() => "Unknown error");
+    const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
     throw new AirflowApiError(
-      `API Error: ${response.status} - ${errorText}`,
+      `API Error: ${response.status} - ${errorData.error || response.statusText}`,
       response.status,
       response.statusText
     );
@@ -89,18 +91,21 @@ export async function validateCredentials(
   password: string
 ): Promise<User> {
   const token = btoa(`${username}:${password}`);
-  const url = `${baseUrl.replace(/\/$/, "")}/api/v1/users/${encodeURIComponent(username)}`;
+  // Use the Next.js API proxy route to avoid CORS issues
+  const proxyUrl = `/api/airflow/users/${encodeURIComponent(username)}`;
   
-  const response = await fetch(url, {
+  const response = await fetch(proxyUrl, {
     headers: {
       "Authorization": `Basic ${token}`,
+      "X-Airflow-Base-URL": baseUrl,
       "Content-Type": "application/json",
     },
   });
   
   if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
     throw new AirflowApiError(
-      `Authentication failed: ${response.status}`,
+      `Authentication failed: ${response.status} - ${errorData.error || response.statusText}`,
       response.status,
       response.statusText
     );
@@ -253,18 +258,21 @@ export async function fetchTaskLogs(
   
   const { baseUrl, token } = config;
   const endpoint = `/dags/${encodeURIComponent(dagId)}/dagRuns/${encodeURIComponent(dagRunId)}/taskInstances/${encodeURIComponent(taskId)}/logs/${taskTryNumber}`;
-  const url = `${baseUrl.replace(/\/$/, "")}/api/v1${endpoint}`;
+  // Use the Next.js API proxy route to avoid CORS issues
+  const proxyUrl = `/api/airflow${endpoint}`;
   
-  const response = await fetch(url, {
+  const response = await fetch(proxyUrl, {
     headers: {
       "Authorization": `Basic ${token}`,
+      "X-Airflow-Base-URL": baseUrl,
       "Accept": "text/plain",
     },
   });
   
   if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
     throw new AirflowApiError(
-      `Failed to fetch logs: ${response.status}`,
+      `Failed to fetch logs: ${response.status} - ${errorData.error || response.statusText}`,
       response.status,
       response.statusText
     );
