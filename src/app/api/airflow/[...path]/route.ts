@@ -100,25 +100,29 @@ async function handleRequest(
     // Get the response content type
     const contentType = response.headers.get("content-type") || "";
     
+    // Read the response body once
+    const isTextResponse = contentType.includes("text/plain") || apiPath.includes("/logs/");
+    const responseBody = isTextResponse 
+      ? await response.text() 
+      : await response.json().catch(() => ({ error: "Failed to parse response" }));
+    
     if (!response.ok) {
-      const errorText = await response.text();
+      const errorMessage = isTextResponse ? responseBody : (responseBody.error || response.statusText);
       return NextResponse.json(
-        { error: errorText || response.statusText },
+        { error: errorMessage },
         { status: response.status }
       );
     }
     
     // Return the response based on content type
-    if (contentType.includes("text/plain") || apiPath.includes("/logs/")) {
-      const text = await response.text();
-      return new NextResponse(text, {
+    if (isTextResponse) {
+      return new NextResponse(responseBody, {
         status: response.status,
         headers: { "Content-Type": "text/plain" },
       });
     }
     
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    return NextResponse.json(responseBody, { status: response.status });
   } catch (error) {
     console.error("Proxy error:", error);
     return NextResponse.json(
