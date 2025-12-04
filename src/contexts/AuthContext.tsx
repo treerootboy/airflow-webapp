@@ -2,9 +2,10 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 import { AuthState, User, LoginCredentials } from "@/types/airflow";
+import { validateCredentials, AirflowApiError } from "@/lib/airflowApi";
 
 interface AuthContextType extends AuthState {
-  login: (credentials: LoginCredentials) => Promise<boolean>;
+  login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   loading: boolean;
 }
@@ -44,34 +45,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
-  const login = useCallback(async (credentials: LoginCredentials): Promise<boolean> => {
+  const login = useCallback(async (credentials: LoginCredentials): Promise<{ success: boolean; error?: string }> => {
     setLoading(true);
     try {
-      // In a real app, this would call the Airflow API
-      // For demo purposes, we simulate a successful login
-      const mockUser: User = {
-        username: credentials.username,
-        email: `${credentials.username}@example.com`,
-        first_name: credentials.username,
-        last_name: "User",
-        roles: [{ name: "Admin" }],
-      };
-      const mockToken = btoa(`${credentials.username}:${credentials.password}`);
+      // Call Airflow API to validate credentials
+      const user = await validateCredentials(
+        credentials.baseUrl,
+        credentials.username,
+        credentials.password
+      );
       
-      localStorage.setItem("airflow_token", mockToken);
-      localStorage.setItem("airflow_user", JSON.stringify(mockUser));
+      const token = btoa(`${credentials.username}:${credentials.password}`);
+      
+      localStorage.setItem("airflow_token", token);
+      localStorage.setItem("airflow_user", JSON.stringify(user));
       localStorage.setItem("airflow_baseurl", credentials.baseUrl);
       
       setAuthState({
         isAuthenticated: true,
-        user: mockUser,
-        token: mockToken,
+        user,
+        token,
         baseUrl: credentials.baseUrl,
       });
       
-      return true;
-    } catch {
-      return false;
+      return { success: true };
+    } catch (error) {
+      if (error instanceof AirflowApiError) {
+        if (error.status === 401 || error.status === 403) {
+          return { success: false, error: "Invalid username or password" };
+        }
+        return { success: false, error: `Connection failed: ${error.message}` };
+      }
+      return { success: false, error: "Unable to connect to Airflow server" };
     } finally {
       setLoading(false);
     }

@@ -47,11 +47,11 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const success = await login({ username, password, baseUrl });
-      if (success) {
+      const result = await login({ username, password, baseUrl });
+      if (result.success) {
         router.push("/dags");
       } else {
-        setError("Login failed. Please check your credentials.");
+        setError(result.error || "Login failed. Please check your credentials.");
       }
     } catch {
       setError("An error occurred. Please try again.");

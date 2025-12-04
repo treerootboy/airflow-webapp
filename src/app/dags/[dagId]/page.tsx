@@ -113,8 +113,8 @@ function formatDuration(seconds: number | null): string {
 }
 
 // Log Viewer Component
-function LogViewer({ taskId }: { taskId: string }) {
-  const { logs, loading, error } = useTaskLogs(taskId);
+function LogViewer({ dagId, runId, taskId, tryNumber }: { dagId: string; runId: string; taskId: string; tryNumber: number }) {
+  const { logs, loading, error } = useTaskLogs(dagId, runId, taskId, tryNumber);
 
   // Simple log highlighting
   const highlightedLogs = logs.split('\n').map((line, index) => {
@@ -161,11 +161,13 @@ function LogViewer({ taskId }: { taskId: string }) {
 // Task Row Component
 function TaskRow({
   task,
+  dagId,
   onClear,
   onMarkSuccess,
   onMarkFailed,
 }: {
   task: TaskInstance;
+  dagId: string;
   onClear: () => void;
   onMarkSuccess: () => void;
   onMarkFailed: () => void;
@@ -207,7 +209,7 @@ function TaskRow({
                   Try #{task.try_number} - {task.state}
                 </DialogDescription>
               </DialogHeader>
-              <LogViewer taskId={task.task_id} />
+              <LogViewer dagId={dagId} runId={task.dag_run_id} taskId={task.task_id} tryNumber={task.try_number} />
               <DialogFooter>
                 <Button variant="outline" onClick={() => setLogDialogOpen(false)}>
                   Close
@@ -287,6 +289,7 @@ function RunDetails({ dagId, run }: { dagId: string; run: DAGRun }) {
           <TaskRow
             key={task.task_id}
             task={task}
+            dagId={dagId}
             onClear={() => clearTask(task.task_id)}
             onMarkSuccess={() => markSuccess(task.task_id)}
             onMarkFailed={() => markFailed(task.task_id)}

@@ -2,42 +2,64 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { DAG, DAGRun, TaskInstance } from "@/types/airflow";
-import { mockDAGs, mockDAGRuns, mockTaskInstances, mockTaskLogs } from "@/lib/mockData";
+import {
+  fetchDAGs,
+  fetchDAG,
+  toggleDAGPause,
+  fetchDAGRuns,
+  triggerDAGRun,
+  fetchTaskInstances,
+  clearTaskInstance,
+  setTaskInstanceState,
+  fetchTaskLogs,
+  AirflowApiError,
+} from "@/lib/airflowApi";
 
 export function useDAGs() {
   const [dags, setDAGs] = useState<DAG[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Simulate API call
-    const fetchDAGs = async () => {
-      setLoading(true);
-      try {
-        // In production, this would be: fetch('/api/v1/dags')
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        setDAGs(mockDAGs);
-        setError(null);
-      } catch (err) {
+  const loadDAGs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetchDAGs();
+      setDAGs(response.dags);
+      setError(null);
+    } catch (err) {
+      if (err instanceof AirflowApiError) {
+        setError(err.message);
+      } else {
         setError(err instanceof Error ? err.message : "Failed to fetch DAGs");
-      } finally {
-        setLoading(false);
       }
-    };
-
-    fetchDAGs();
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadDAGs();
+  }, [loadDAGs]);
 
   const togglePause = useCallback(async (dagId: string, isPaused: boolean) => {
-    // In production, this would call PATCH /api/v1/dags/{dag_id}
-    setDAGs((prev) =>
-      prev.map((dag) =>
-        dag.dag_id === dagId ? { ...dag, is_paused: isPaused } : dag
-      )
-    );
+    try {
+      const updatedDAG = await toggleDAGPause(dagId, isPaused);
+      setDAGs((prev) =>
+        prev.map((dag) =>
+          dag.dag_id === dagId ? { ...dag, is_paused: updatedDAG.is_paused } : dag
+        )
+      );
+    } catch (err) {
+      console.error("Failed to toggle pause:", err);
+      throw err;
+    }
   }, []);
 
-  return { dags, loading, error, togglePause };
+  const refresh = useCallback(() => {
+    loadDAGs();
+  }, [loadDAGs]);
+
+  return { dags, loading, error, togglePause, refresh };
 }
 
 export function useDAG(dagId: string) {
@@ -45,37 +67,50 @@ export function useDAG(dagId: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchDAG = async () => {
-      setLoading(true);
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        const foundDAG = mockDAGs.find((d) => d.dag_id === dagId);
-        if (foundDAG) {
-          setDAG(foundDAG);
-          setError(null);
-        } else {
+  const loadDAG = useCallback(async () => {
+    if (!dagId) return;
+    
+    setLoading(true);
+    try {
+      const data = await fetchDAG(dagId);
+      setDAG(data);
+      setError(null);
+    } catch (err) {
+      if (err instanceof AirflowApiError) {
+        if (err.status === 404) {
           setError("DAG not found");
+        } else {
+          setError(err.message);
         }
-      } catch (err) {
+      } else {
         setError(err instanceof Error ? err.message : "Failed to fetch DAG");
-      } finally {
-        setLoading(false);
       }
-    };
-
-    if (dagId) {
-      fetchDAG();
+    } finally {
+      setLoading(false);
     }
   }, [dagId]);
 
+  useEffect(() => {
+    loadDAG();
+  }, [loadDAG]);
+
   const togglePause = useCallback(async (isPaused: boolean) => {
-    if (dag) {
-      setDAG({ ...dag, is_paused: isPaused });
+    if (!dag) return;
+    
+    try {
+      const updatedDAG = await toggleDAGPause(dag.dag_id, isPaused);
+      setDAG(updatedDAG);
+    } catch (err) {
+      console.error("Failed to toggle pause:", err);
+      throw err;
     }
   }, [dag]);
 
-  return { dag, loading, error, togglePause };
+  const refresh = useCallback(() => {
+    loadDAG();
+  }, [loadDAG]);
+
+  return { dag, loading, error, togglePause, refresh };
 }
 
 export function useDAGRuns(dagId: string) {
@@ -83,48 +118,45 @@ export function useDAGRuns(dagId: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchRuns = async () => {
-      setLoading(true);
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 400));
-        setRuns(mockDAGRuns[dagId] || []);
-        setError(null);
-      } catch (err) {
+  const loadRuns = useCallback(async () => {
+    if (!dagId) return;
+    
+    setLoading(true);
+    try {
+      const response = await fetchDAGRuns(dagId);
+      setRuns(response.dag_runs);
+      setError(null);
+    } catch (err) {
+      if (err instanceof AirflowApiError) {
+        setError(err.message);
+      } else {
         setError(err instanceof Error ? err.message : "Failed to fetch DAG runs");
-      } finally {
-        setLoading(false);
       }
-    };
-
-    if (dagId) {
-      fetchRuns();
+    } finally {
+      setLoading(false);
     }
   }, [dagId]);
 
+  useEffect(() => {
+    loadRuns();
+  }, [loadRuns]);
+
   const triggerRun = useCallback(async (conf: Record<string, unknown> = {}) => {
-    // In production, this would call POST /api/v1/dags/{dag_id}/dagRuns
-    const newRun: DAGRun = {
-      conf,
-      dag_id: dagId,
-      dag_run_id: `manual__${new Date().toISOString()}`,
-      data_interval_end: null,
-      data_interval_start: null,
-      end_date: null,
-      execution_date: new Date().toISOString(),
-      external_trigger: true,
-      last_scheduling_decision: null,
-      logical_date: new Date().toISOString(),
-      note: null,
-      run_type: "manual",
-      start_date: new Date().toISOString(),
-      state: "queued",
-    };
-    setRuns((prev) => [newRun, ...prev]);
-    return newRun;
+    try {
+      const newRun = await triggerDAGRun(dagId, conf);
+      setRuns((prev) => [newRun, ...prev]);
+      return newRun;
+    } catch (err) {
+      console.error("Failed to trigger DAG run:", err);
+      throw err;
+    }
   }, [dagId]);
 
-  return { runs, loading, error, triggerRun };
+  const refresh = useCallback(() => {
+    loadRuns();
+  }, [loadRuns]);
+
+  return { runs, loading, error, triggerRun, refresh };
 }
 
 export function useTaskInstances(dagId: string, runId: string) {
@@ -132,77 +164,107 @@ export function useTaskInstances(dagId: string, runId: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchTasks = async () => {
-      setLoading(true);
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        const key = `${dagId}:${runId}`;
-        setTasks(mockTaskInstances[key] || []);
-        setError(null);
-      } catch (err) {
+  const loadTasks = useCallback(async () => {
+    if (!dagId || !runId) return;
+    
+    setLoading(true);
+    try {
+      const response = await fetchTaskInstances(dagId, runId);
+      setTasks(response.task_instances);
+      setError(null);
+    } catch (err) {
+      if (err instanceof AirflowApiError) {
+        setError(err.message);
+      } else {
         setError(err instanceof Error ? err.message : "Failed to fetch task instances");
-      } finally {
-        setLoading(false);
       }
-    };
-
-    if (dagId && runId) {
-      fetchTasks();
+    } finally {
+      setLoading(false);
     }
   }, [dagId, runId]);
 
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
+
   const clearTask = useCallback(async (taskId: string) => {
-    // In production, this would call POST /api/v1/dags/{dag_id}/clearTaskInstances
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.task_id === taskId ? { ...task, state: "queued" } : task
-      )
-    );
-  }, []);
+    try {
+      await clearTaskInstance(dagId, runId, taskId);
+      // Refresh tasks after clearing
+      loadTasks();
+    } catch (err) {
+      console.error("Failed to clear task:", err);
+      throw err;
+    }
+  }, [dagId, runId, loadTasks]);
 
   const markSuccess = useCallback(async (taskId: string) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.task_id === taskId ? { ...task, state: "success" } : task
-      )
-    );
-  }, []);
+    try {
+      const updated = await setTaskInstanceState(dagId, runId, taskId, "success");
+      setTasks((prev) =>
+        prev.map((task) =>
+          task.task_id === taskId ? { ...task, state: updated.state } : task
+        )
+      );
+    } catch (err) {
+      console.error("Failed to mark task as success:", err);
+      throw err;
+    }
+  }, [dagId, runId]);
 
   const markFailed = useCallback(async (taskId: string) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.task_id === taskId ? { ...task, state: "failed" } : task
-      )
-    );
-  }, []);
+    try {
+      const updated = await setTaskInstanceState(dagId, runId, taskId, "failed");
+      setTasks((prev) =>
+        prev.map((task) =>
+          task.task_id === taskId ? { ...task, state: updated.state } : task
+        )
+      );
+    } catch (err) {
+      console.error("Failed to mark task as failed:", err);
+      throw err;
+    }
+  }, [dagId, runId]);
 
-  return { tasks, loading, error, clearTask, markSuccess, markFailed };
+  const refresh = useCallback(() => {
+    loadTasks();
+  }, [loadTasks]);
+
+  return { tasks, loading, error, clearTask, markSuccess, markFailed, refresh };
 }
 
-export function useTaskLogs(taskId: string) {
+export function useTaskLogs(dagId: string, runId: string, taskId: string, tryNumber: number = 1) {
   const [logs, setLogs] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchLogs = async () => {
-      setLoading(true);
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        setLogs(mockTaskLogs[taskId] || "No logs available for this task.");
-        setError(null);
-      } catch (err) {
+  const loadLogs = useCallback(async () => {
+    if (!dagId || !runId || !taskId) return;
+    
+    setLoading(true);
+    try {
+      const content = await fetchTaskLogs(dagId, runId, taskId, tryNumber);
+      setLogs(content);
+      setError(null);
+    } catch (err) {
+      if (err instanceof AirflowApiError) {
+        setError(err.message);
+      } else {
         setError(err instanceof Error ? err.message : "Failed to fetch logs");
-      } finally {
-        setLoading(false);
       }
-    };
-
-    if (taskId) {
-      fetchLogs();
+      setLogs("No logs available for this task.");
+    } finally {
+      setLoading(false);
     }
-  }, [taskId]);
+  }, [dagId, runId, taskId, tryNumber]);
 
-  return { logs, loading, error };
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
+
+  const refresh = useCallback(() => {
+    loadLogs();
+  }, [loadLogs]);
+
+  return { logs, loading, error, refresh };
 }
