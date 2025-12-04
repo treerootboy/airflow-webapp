@@ -151,12 +151,14 @@ export interface Role {
 export interface LoginCredentials {
   username: string;
   password: string;
+  baseUrl: string;
 }
 
 export interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
   token: string | null;
+  baseUrl: string | null;
 }
 
 // API Response types

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
+  const [baseUrl, setBaseUrl] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -17,17 +18,40 @@ export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
 
+  useEffect(() => {
+    // Load saved baseUrl from localStorage
+    const savedBaseUrl = localStorage.getItem("airflow_baseurl");
+    if (savedBaseUrl) {
+      setBaseUrl(savedBaseUrl);
+    }
+  }, []);
+
+  const isValidUrl = (url: string): boolean => {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (!isValidUrl(baseUrl)) {
+      setError("Please enter a valid Airflow Base URL");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const success = await login({ username, password });
+      const success = await login({ username, password, baseUrl });
       if (success) {
         router.push("/dags");
       } else {
-        setError("Invalid username or password");
+        setError("Login failed. Please check your credentials.");
       }
     } catch {
       setError("An error occurred. Please try again.");
@@ -55,6 +79,18 @@ export default function LoginPage() {
                 {error}
               </div>
             )}
+            <div className="space-y-2">
+              <Label htmlFor="baseUrl">Airflow Base URL</Label>
+              <Input
+                id="baseUrl"
+                type="url"
+                placeholder="https://your-airflow-instance.com"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                required
+                disabled={isLoading}
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
               <Input

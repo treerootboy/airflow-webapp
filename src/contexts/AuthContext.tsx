@@ -16,6 +16,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: false,
     user: null,
     token: null,
+    baseUrl: null,
   });
   const [loading, setLoading] = useState(true);
 
@@ -23,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check for existing session
     const token = localStorage.getItem("airflow_token");
     const userStr = localStorage.getItem("airflow_user");
+    const baseUrl = localStorage.getItem("airflow_baseurl");
     
     if (token && userStr) {
       try {
@@ -31,10 +33,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           isAuthenticated: true,
           user,
           token,
+          baseUrl,
         });
       } catch {
         localStorage.removeItem("airflow_token");
         localStorage.removeItem("airflow_user");
+        localStorage.removeItem("airflow_baseurl");
       }
     }
     setLoading(false);
@@ -56,11 +60,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       localStorage.setItem("airflow_token", mockToken);
       localStorage.setItem("airflow_user", JSON.stringify(mockUser));
+      localStorage.setItem("airflow_baseurl", credentials.baseUrl);
       
       setAuthState({
         isAuthenticated: true,
         user: mockUser,
         token: mockToken,
+        baseUrl: credentials.baseUrl,
       });
       
       return true;
@@ -74,10 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem("airflow_token");
     localStorage.removeItem("airflow_user");
+    localStorage.removeItem("airflow_baseurl");
     setAuthState({
       isAuthenticated: false,
       user: null,
       token: null,
+      baseUrl: null,
     });
   }, []);
 
