@@ -249,10 +249,13 @@ export function useTaskLogs(dagId: string, runId: string, taskId: string, tryNum
     } catch (err) {
       if (err instanceof AirflowApiError) {
         setError(err.message);
+        // Only show fallback message for 404 (logs not found) errors
+        if (err.status === 404) {
+          setLogs("No logs available for this task.");
+        }
       } else {
         setError(err instanceof Error ? err.message : "Failed to fetch logs");
       }
-      setLogs("No logs available for this task.");
     } finally {
       setLoading(false);
     }

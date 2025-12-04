@@ -252,7 +252,8 @@ export async function fetchTaskLogs(
   }
   
   const { baseUrl, token } = config;
-  const url = `${baseUrl.replace(/\/$/, "")}/api/v1/dags/${encodeURIComponent(dagId)}/dagRuns/${encodeURIComponent(dagRunId)}/taskInstances/${encodeURIComponent(taskId)}/logs/${taskTryNumber}`;
+  const endpoint = `/dags/${encodeURIComponent(dagId)}/dagRuns/${encodeURIComponent(dagRunId)}/taskInstances/${encodeURIComponent(taskId)}/logs/${taskTryNumber}`;
+  const url = `${baseUrl.replace(/\/$/, "")}/api/v1${endpoint}`;
   
   const response = await fetch(url, {
     headers: {

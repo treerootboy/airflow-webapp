@@ -4,6 +4,10 @@ import React, { createContext, useContext, useState, useCallback, useEffect, Rea
 import { AuthState, User, LoginCredentials } from "@/types/airflow";
 import { validateCredentials, AirflowApiError } from "@/lib/airflowApi";
 
+// HTTP Status codes for better readability
+const HTTP_UNAUTHORIZED = 401;
+const HTTP_FORBIDDEN = 403;
+
 interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
@@ -71,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: true };
     } catch (error) {
       if (error instanceof AirflowApiError) {
-        if (error.status === 401 || error.status === 403) {
+        if (error.status === HTTP_UNAUTHORIZED || error.status === HTTP_FORBIDDEN) {
           return { success: false, error: "Invalid username or password" };
         }
         return { success: false, error: `Connection failed: ${error.message}` };
