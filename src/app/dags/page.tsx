@@ -39,10 +39,11 @@ import { cn } from "@/lib/utils";
 import { DAG } from "@/types/airflow";
 
 export default function DAGsPage() {
-  const { dags, loading, togglePause } = useDAGs();
+  const { dags, loading, togglePause, refresh } = useDAGs();
   const { getSettingsForDag, updateSettings } = useNotifications();
   const [searchQuery, setSearchQuery] = useState("");
   const [tagFilter, setTagFilter] = useState<string>("all");
+  const [refreshing, setRefreshing] = useState(false);
 
   // Get all unique tags from DAGs
   const allTags = useMemo(() => {
@@ -84,6 +85,12 @@ export default function DAGsPage() {
     });
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  };
+
   return (
     <AuthGuard>
       <AppShell>
@@ -96,8 +103,8 @@ export default function DAGsPage() {
                 Manage and monitor your Airflow DAGs
               </p>
             </div>
-            <Button variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing || loading}>
+              <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
               Refresh
             </Button>
           </div>
