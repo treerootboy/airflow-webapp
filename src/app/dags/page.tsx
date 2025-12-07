@@ -31,8 +31,6 @@ import {
   BellOff,
   Search,
   RefreshCw,
-  Play,
-  Pause,
   ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -143,7 +141,6 @@ export default function DAGsPage() {
                   <TableHead>DAG ID</TableHead>
                   <TableHead className="hidden md:table-cell">Owner</TableHead>
                   <TableHead className="hidden lg:table-cell">Schedule</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead className="text-center">Active</TableHead>
                   <TableHead className="text-center">Notify</TableHead>
                   <TableHead className="w-12"></TableHead>
@@ -163,9 +160,6 @@ export default function DAGsPage() {
                         <Skeleton className="h-4 w-32" />
                       </TableCell>
                       <TableCell>
-                        <Skeleton className="h-6 w-16" />
-                      </TableCell>
-                      <TableCell>
                         <Skeleton className="h-6 w-10 mx-auto" />
                       </TableCell>
                       <TableCell>
@@ -178,7 +172,7 @@ export default function DAGsPage() {
                   ))
                 ) : filteredDAGs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell colSpan={6} className="text-center py-8">
                       <p className="text-muted-foreground">No DAGs found</p>
                     </TableCell>
                   </TableRow>
@@ -216,26 +210,12 @@ export default function DAGsPage() {
                         <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
                           {dag.timetable_description || dag.schedule_interval?.value || "None"}
                         </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={dag.is_active ? "success" : "secondary"}
-                          >
-                            {dag.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                        </TableCell>
                         <TableCell className="text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            {dag.is_paused ? (
-                              <Pause className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <Play className="h-4 w-4 text-green-500" />
-                            )}
-                            <Switch
-                              checked={!dag.is_paused}
-                              onCheckedChange={() => handleTogglePause(dag)}
-                              aria-label={dag.is_paused ? "Resume DAG" : "Pause DAG"}
-                            />
-                          </div>
+                          <Switch
+                            checked={!dag.is_paused}
+                            onCheckedChange={() => handleTogglePause(dag)}
+                            aria-label={dag.is_paused ? "Resume DAG" : "Pause DAG"}
+                          />
                         </TableCell>
                         <TableCell className="text-center">
                           <Button
