@@ -10,6 +10,10 @@ import {
   User,
 } from "@/types/airflow";
 
+// HTTP Status codes
+const HTTP_UNAUTHORIZED = 401;
+const HTTP_FORBIDDEN = 403;
+
 // API Error class
 export class AirflowApiError extends Error {
   status: number;
@@ -114,13 +118,23 @@ export async function login(
       credentials: "include", // Important for session cookies
     });
     
-    // If login endpoint exists and succeeds, proceed with user info fetch
-    // Note: Some Airflow instances may not have this endpoint or may return redirects
-    // which is acceptable - we still need to validate with the API
+    // Check if login was successful
+    // Note: Some Airflow instances may return redirects (3xx) which is acceptable
+    // Only fail if we get an explicit authentication error
+    if (loginResponse.status === HTTP_UNAUTHORIZED || loginResponse.status === HTTP_FORBIDDEN) {
+      throw new AirflowApiError(
+        "Login failed: Invalid credentials",
+        loginResponse.status,
+        loginResponse.statusText
+      );
+    }
   } catch (error) {
-    // Login endpoint may not exist or may not be accessible
-    // Continue with API validation
-    console.log("Login endpoint not available, proceeding with API validation");
+    // If the error is an authentication failure, propagate it
+    if (error instanceof AirflowApiError) {
+      throw error;
+    }
+    // Otherwise, login endpoint may not exist or may not be accessible
+    // Continue with API validation as fallback
   }
   
   // Validate credentials by fetching user information from the API
