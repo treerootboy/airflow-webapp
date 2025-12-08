@@ -163,15 +163,6 @@ export async function login(
   return { user, token };
 }
 
-export async function validateCredentials(
-  baseUrl: string,
-  username: string,
-  password: string
-): Promise<User> {
-  const { user } = await login(baseUrl, username, password);
-  return user;
-}
-
 // ==================== DAG API ====================
 
 export async function fetchDAGs(
