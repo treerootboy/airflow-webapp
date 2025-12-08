@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 import { AuthState, User, LoginCredentials } from "@/types/airflow";
-import { validateCredentials, AirflowApiError } from "@/lib/airflowApi";
+import { login as airflowLogin, AirflowApiError } from "@/lib/airflowApi";
 
 // HTTP Status codes for better readability
 const HTTP_UNAUTHORIZED = 401;
@@ -52,14 +52,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (credentials: LoginCredentials): Promise<{ success: boolean; error?: string }> => {
     setLoading(true);
     try {
-      // Call Airflow API to validate credentials
-      const user = await validateCredentials(
+      // Call Airflow login API to authenticate and establish session
+      const { user, token } = await airflowLogin(
         credentials.baseUrl,
         credentials.username,
         credentials.password
       );
-      
-      const token = btoa(`${credentials.username}:${credentials.password}`);
       
       localStorage.setItem("airflow_token", token);
       localStorage.setItem("airflow_user", JSON.stringify(user));

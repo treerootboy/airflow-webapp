@@ -84,32 +84,78 @@ async function apiFetch<T>(
 
 // ==================== Authentication API ====================
 
+/**
+ * Login function that authenticates the user and establishes a session
+ * This function performs the actual login operation by:
+ * 1. Attempting to authenticate with a login endpoint (if available)
+ * 2. Validating credentials by fetching user information
+ */
+export async function login(
+  baseUrl: string,
+  username: string,
+  password: string
+): Promise<{ user: User; token: string }> {
+  const token = btoa(`${username}:${password}`);
+  const cleanBaseUrl = baseUrl.replace(/\/$/, "");
+  
+  // Attempt to establish a session by calling the login endpoint
+  // This is important for proper authentication flow
+  try {
+    const loginUrl = `${cleanBaseUrl}/login`;
+    const loginResponse = await fetch(loginUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        username,
+        password,
+      }),
+      credentials: "include", // Important for session cookies
+    });
+    
+    // If login endpoint exists and succeeds, proceed with user info fetch
+    // Note: Some Airflow instances may not have this endpoint or may return redirects
+    // which is acceptable - we still need to validate with the API
+  } catch (error) {
+    // Login endpoint may not exist or may not be accessible
+    // Continue with API validation
+    console.log("Login endpoint not available, proceeding with API validation");
+  }
+  
+  // Validate credentials by fetching user information from the API
+  // This confirms the user exists and credentials are correct
+  const userUrl = `${cleanBaseUrl}/api/v1/users/${encodeURIComponent(username)}`;
+  
+  const userResponse = await fetch(userUrl, {
+    headers: {
+      "Authorization": `Basic ${token}`,
+      "Content-Type": "application/json",
+    },
+    credentials: "include", // Include cookies for session management
+  });
+  
+  if (!userResponse.ok) {
+    const errorText = await userResponse.text().catch(() => "Unknown error");
+    throw new AirflowApiError(
+      `Authentication failed: ${userResponse.status} - ${errorText}`,
+      userResponse.status,
+      userResponse.statusText
+    );
+  }
+  
+  const user = await userResponse.json();
+  
+  return { user, token };
+}
+
 export async function validateCredentials(
   baseUrl: string,
   username: string,
   password: string
 ): Promise<User> {
-  const token = btoa(`${username}:${password}`);
-  // Make direct request to Airflow API
-  const url = `${baseUrl.replace(/\/$/, "")}/api/v1/users/${encodeURIComponent(username)}`;
-  
-  const response = await fetch(url, {
-    headers: {
-      "Authorization": `Basic ${token}`,
-      "Content-Type": "application/json",
-    },
-  });
-  
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "Unknown error");
-    throw new AirflowApiError(
-      `Authentication failed: ${response.status} - ${errorText}`,
-      response.status,
-      response.statusText
-    );
-  }
-  
-  return response.json();
+  const { user } = await login(baseUrl, username, password);
+  return user;
 }
 
 // ==================== DAG API ====================
